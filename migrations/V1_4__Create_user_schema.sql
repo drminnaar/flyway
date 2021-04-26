@@ -1,1 +1,0 @@
-CREATE SCHEMA user_data AUTHORIZATION postgres;

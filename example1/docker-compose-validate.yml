@@ -1,0 +1,14 @@
+version: '3.5'
+services:
+  flyway:
+    container_name: flyway
+    image: flyway/flyway:7-alpine
+    command: -url=jdbc:postgresql://flyway-pg/heroes -connectRetries=60 -user=postgres -password=password validate
+    volumes:
+      - ./migrations:/flyway/sql
+    networks:
+      - default
+networks:
+  default:
+    external:
+      name: flywaynet

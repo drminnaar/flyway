@@ -1,12 +1,19 @@
-![flyway](https://user-images.githubusercontent.com/33935506/40938269-afdc99c8-6841-11e8-9e11-860bf2e50596.png)
+![flyway-cover](https://user-images.githubusercontent.com/33935506/116072731-99059900-a6e3-11eb-857a-fff425de830b.png)
 
-# Flyway README
+# Flyway Guide
 
 This is a repository that consists of a collection of examples that illustrate how to use Flyway in terms of SQL migrations.
 
+## Contents
+
+* [Toolchain](#toolchain)
+* [Environment Setup](#environment-setup)
+* [Getting Started](#getting-started)
+* [Example 1](#example-1)
+
 ---
 
-## Technology Used
+## Toolchain
 
 * [Visual Studio Code](https://code.visualstudio.com/)
 
@@ -54,7 +61,7 @@ You should have _Docker_ and _Docker-Compose_ installed. This can be verified by
 
 If all is well, the above commands should have run flawlessly.
 
-### Get Repository
+## Getting Started
 
 There are 3 ways to get the repository for this guide:
 
@@ -73,73 +80,59 @@ There are 3 ways to get the repository for this guide:
 1. Download Zip File
 
    ```bash
-   wget https://github.com/drminnaar/flyway/archive/master.zip
-   unzip ./master.zip
+   wget https://github.com/drminnaar/flyway/archive/refs/heads/main.zip
+   unzip ./main.zip
    ```
 
-### Initialise Environment
+---
 
-* Navigate to the _'flyway'_ directory using the command line.
+## Example 1
 
-* Once inside the _flyway_ directory, you will notice a file called _'docker-compose.yml'_. This file contains all the instructions required to initialise our environment with all the required containerised software. In our case, the _docker-compose.yml_ files holds the instructions to run _postgresql_ and _pgadmin_ containers.
+Everything that is required to run this example is managed via *docker-compose*.
 
-* Type the following command to initialise environment to run Flyway code migrations:
+The `docker-compose.yml` file defines a stack that provides the following:
+
+* Postgres 12 Database
+* Entry point script that creates the *heroes* database
+* pgAdmin UI to view/manage database
+
+There are 3 additional *docker-compose* files that are used to manage the *Flyway* migrations. They are listed as follows:
+
+* `docker-compose-info` - Runs *Flyway* to obtain information regarding migrations
+* `docker-compose-validate` - Runs *Flyway* to verify validity of migrations
+* `docker-compose-migrate` - Runs *Flyway* to migrate migrations
+
+### Start Stack
+
+* Type the following command to initialise environment:
 
   ```bash
-  docker-compose up
+  docker-compose -f ./example1/docker-compose.yml up --detach
+
+  # output
+  Creating network "flywaynet" with driver "bridge"
+  Creating volume "flyway-pg-data" with default driver
+  Creating flyway-pgadmin ... done
+  Creating flyway-pg      ... done
   ```
 
 * Type the following command to verify that there are 2 containers running. One container will be our PostgreSQL server. The second container will be our pgAdmin web application.
 
   ```bash
-  docker-compose ps
+  docker-compose -f ./example1/docker-compose.yml ps
+
+  # output
+       Name                   Command              State               Ports
+  --------------------------------------------------------------------------------------
+  flyway-pg        docker-entrypoint.sh postgres   Up      0.0.0.0:5432->5432/tcp
+  flyway-pgadmin   /entrypoint.sh                  Up      443/tcp, 0.0.0.0:8080->80/tcp
   ```
 
-  The above command should display the running containers as specified in the _docker-compose_ file.
-
----
-
-## Create Database
-
-The first thing to be aware of when creating a migration, is that migrations do not create databases. Migrations only apply within the context of a database and do not create the database itself. Therefore, for my demonstration I will create an empty database from scratch and then create migrations for that database.
-
-In this example, I create a database called _"heroes"_. It is a database that stores data related to, you guessed it, heroes.
-
-* At this point, you should have a running PostgreSQL container instance. To verify this, run the following command:
-
-  ```bash
-  docker-compose ps
-  ```
-
-* List available databases by running the following command:
-
-  ```bash
-  docker exec -it $(docker container ls -qf name=pg-dev) psql -U postgres -c '\l'
-  ```
-
-  Currently, there is no _heroes_ database. 
-  
-* Type the following command to create a _heroes_ database:
-
-  ```bash
-  docker exec -it $(docker container ls -qf name=pg-dev) psql -U postgres -c 'CREATE DATABASE heroes OWNER postgres'
-  ```
-
-  List available databases by running the following command:
-
-  ```bash
-  docker exec -it $(docker container ls -qf name=pg-dev) psql -U postgres -c '\l'
-  ```
-
----
-
-## Create Migrations
+### Define Migrations
 
 For clarity sake, please take note that a migration is nothing more than a SQL file consisting of various SQL operations to be performed on the database.
 
-### Understanding The Migrations
-
-The _heroes_ database now exists. We are now ready to run our migrations. Please take note of the _migrations_ folder that is part of the repo for this example. The _migrations_ folder consists of 7 migrations that are briefly described as follows:
+The _heroes_ database now exists and we are ready to run our migrations. Please take note of the _migrations_ folder that is part of the repo for this example. The _migrations_ folder consists of 7 migrations that are briefly described as follows:
 
 * V1_1__Create_hero_schema.sql - Creates a new _hero\_data_ schema
 
@@ -231,7 +224,7 @@ The _heroes_ database now exists. We are now ready to run our migrations. Please
 
 You will have noticed the strange naming convention. The way we name a migrations is as follows:
 
-[According to the official Flyway documentation](https://flywaydb.org/documentation/migrations#naming), the file name consists of the following parts:
+[According to the official Flyway documentation](https://flywaydb.org/documentation/concepts/migrations.html#naming), the file name consists of the following parts:
 
 ![flyway-naming-convention](https://user-images.githubusercontent.com/33935506/40931818-bc78fb5a-682c-11e8-90ce-cb9f8d0e8c95.png)
 
@@ -240,65 +233,198 @@ You will have noticed the strange naming convention. The way we name a migration
 * **Separator:** __ (two underscores)
 * **Description:** Underscores (automatically replaced by spaces at runtime) separate the words
 
-### Run Migrations
+### Manage Migrations
 
-Finally we get to run our migrations. To run the migrations, we will execute the [_Flyway_ Docker container](https://hub.docker.com/r/boxfuse/flyway/). 
+Finally we get to run our migrations. To run the migrations, we will use *Docker* and the *[official Flyway Docker Image](https://hub.docker.com/r/flyway/flyway)*
 
-Before running the migration, we need to obtain the IP address of the postgres container as follows:
+#### Get Migrations Info
 
-```bash
-docker container inspect -f "{{ .NetworkSettings.Networks.flyway_skynet.IPAddress}}" flyway_pg-dev_1
+Before running the migration, lets see what migrations we have. We can do that by running the following command:
+
+```powershell
+# run docker-compose-info.yml stack
+docker-compose -f ./example1/docker-compose-info.yml up
+
+# output
+
+Flyway Community Edition 7.6.0 by Redgate
+Database: jdbc:postgresql://flyway-pg/heroes (PostgreSQL 12.5)
+Schema version: << Empty Schema >>
++------------+---------+----------------------------------+------+--------------+---------+
+| Category   | Version | Description                      | Type | Installed On | State   |
++------------+---------+----------------------------------+------+--------------+---------+
+| Versioned  | 1.1     | Create hero schema               | SQL  |              | Pending |
+| Versioned  | 1.2     | Create hero table                | SQL  |              | Pending |
+| Versioned  | 1.3     | Add Destroyer hero               | SQL  |              | Pending |
+| Versioned  | 1.4     | Create user schema               | SQL  |              | Pending |
+| Versioned  | 1.5     | Create user table                | SQL  |              | Pending |
+| Versioned  | 1.6     | Add unique hero name contraint   | SQL  |              | Pending |
+| Versioned  | 1.7     | Add unique user email constraint | SQL  |              | Pending |
+| Repeatable |         | 001 Install extensions           | SQL  |              | Pending |
++------------+---------+----------------------------------+------+--------------+---------+
 ```
 
-We plug the obtained IP address from above into the command below. In my case, my IP address is _172.18.0.2_
+#### Validate Migrations
 
-```bash
-docker run --rm --network docker_skynet -v $PWD/migrations:/flyway/sql boxfuse/flyway -url=jdbc:postgresql://172.18.0.2:5432/heroes -user=postgres -password=password migrate
+We can validate our migrations to determine anythin that should be fixed before running migrations.
+
+```powershell
+# run docker-compose-validate.yml
+docker-compose -f ./example1/docker-compose-validate.yml up
+
+# output
+Flyway Community Edition 7.6.0 by Redgate
+Database: jdbc:postgresql://flyway-pg/heroes (PostgreSQL 12.5)
+ERROR: Validate failed: Migrations have failed validation
+Detected resolved migration not applied to database: 1.1. To fix this error, either run migrate, or set -ignorePendingMigrations=true.
+Detected resolved migration not applied to database: 1.2. To fix this error, either run migrate, or set -ignorePendingMigrations=true.
+Detected resolved migration not applied to database: 1.3. To fix this error, either run migrate, or set -ignorePendingMigrations=true.
+Detected resolved migration not applied to database: 1.4. To fix this error, either run migrate, or set -ignorePendingMigrations=true.
+Detected resolved migration not applied to database: 1.5. To fix this error, either run migrate, or set -ignorePendingMigrations=true.
+Detected resolved migration not applied to database: 1.6. To fix this error, either run migrate, or set -ignorePendingMigrations=true.
+Detected resolved migration not applied to database: 1.7. To fix this error, either run migrate, or set -ignorePendingMigrations=true.
+Detected resolved repeatable migration not applied to database: 001 Install extensions. To fix this error, either run migrate, or set -ignorePendingMigrations=true.
 ```
 
-You should see an output similar to the following output:
+#### Migrate Migrations
 
-![flyway-migration-result](https://user-images.githubusercontent.com/33935506/40933249-2e5510b6-6831-11e8-8df5-526f6c191434.png)
+```powershell
+# run docker-compose-migrate.yml stack
+docker-compose -f ./example1/docker-compose-migrate.yml up
 
-As can be seen from output above, all 7 migrations ran successfully.
-
-Run the following command to see a list of tables in the heroes database:
-
-```bash
-docker exec -it $(docker container ls -qf name=pg-dev) psql -U postgres -d heroes -c "SELECT table_schema, table_name FROM INFORMATION_SCHEMA.TABLES WHERE table_schema NOT IN ('pg_catalog', 'information_schema')"
+# output
+Flyway Community Edition 7.6.0 by Redgate
+Database: jdbc:postgresql://flyway-pg/heroes (PostgreSQL 12.5)
+Successfully validated 8 migrations (execution time 00:00.043s)
+Creating Schema History table "public"."flyway_schema_history" ...
+Current version of schema "public": << Empty Schema >>
+Migrating schema "public" to version "1.1 - Create hero schema"
+Migrating schema "public" to version "1.2 - Create hero table"
+Migrating schema "public" to version "1.3 - Add Destroyer hero"
+Migrating schema "public" to version "1.4 - Create user schema"
+Migrating schema "public" to version "1.5 - Create user table"
+Migrating schema "public" to version "1.6 - Add unique hero name contraint"
+Migrating schema "public" to version "1.7 - Add unique user email constraint"
+Migrating schema "public" with repeatable migration "001 Install extensions"
+Successfully applied 8 migrations to schema "public" (execution time 00:00.438s)
 ```
 
-You should see a list of tables as follows:
+Let's validate our migrations again:
 
-table_schema | table_name
---- | ---
- public       | flyway_schema_history
- hero_data    | hero
- user_data    | user
+```powershell
+docker-compose -f .\example1\docker-compose-validate.yml up
 
-The database table _flyway\_schema\_history_ contains all the records for the database migrations that took place.
+# output
+Flyway Community Edition 7.6.0 by Redgate
+Database: jdbc:postgresql://flyway-pg/heroes (PostgreSQL 12.5)
+Successfully validated 8 migrations (execution time 00:00.046s)
+```
 
-Lastly, log into pgAdmin to view the _flyway\_schema\_history_ table.
+Let's see what information is displayed for our migrations now:
 
-* Login
+```powershell
+Flyway Community Edition 7.6.0 by Redgate
+Database: jdbc:postgresql://flyway-pg/heroes (PostgreSQL 12.5)
+Schema version: 1.7
 
-  Navigate to http://localhost:8080 in your browser
-  * **email/username:** iamhero@heroes.com
-  * **password:** password
++------------+---------+----------------------------------+------+---------------------+---------+
+| Category   | Version | Description                      | Type | Installed On        | State   |
++------------+---------+----------------------------------+------+---------------------+---------+
+| Versioned  | 1.1     | Create hero schema               | SQL  | 2021-04-26 10:15:15 | Success |
+| Versioned  | 1.2     | Create hero table                | SQL  | 2021-04-26 10:15:15 | Success |
+| Versioned  | 1.3     | Add Destroyer hero               | SQL  | 2021-04-26 10:15:15 | Success |
+| Versioned  | 1.4     | Create user schema               | SQL  | 2021-04-26 10:15:15 | Success |
+| Versioned  | 1.5     | Create user table                | SQL  | 2021-04-26 10:15:15 | Success |
+| Versioned  | 1.6     | Add unique hero name contraint   | SQL  | 2021-04-26 10:15:15 | Success |
+| Versioned  | 1.7     | Add unique user email constraint | SQL  | 2021-04-26 10:15:15 | Success |
+| Repeatable |         | 001 Install extensions           | SQL  | 2021-04-26 10:15:15 | Success |
++------------+---------+----------------------------------+------+---------------------+---------+
+```
 
-  If you're wondering where the pgadmin credentials come from, you can find them specified in the _docker-compose.yml_ file. They're passed in as environment variables.
+### Connect To Database
 
-  ![pgadmin-login](https://user-images.githubusercontent.com/33935506/40934525-5ccbda3e-6835-11e8-8f6d-33efc5eea30c.png)
+Use you Postgres client of choice to connect to *heroes* database. If you're new to *Postgresql*, I have written a guide *[Postgresql Getting Started](https://github.com/drminnaar/guides/blob/master/postgresql-guide/1-getting-started.md)* that you can use to explore some tools and techniques for working with *Postgresql*.
 
-* Once logged in, you can connect to the PostgreSQL server by adding a connection as follows:
+I personally like to use the Postgres CLI tool *'psql'*. For more info on *psql*, I provide some details in my guide on how to install *psql* in Windows 10 and Ubuntu:
 
-  ![pgadmin-create-server-1](https://user-images.githubusercontent.com/33935506/40934521-5bf26fec-6835-11e8-83dd-ea686c47be22.png)
+* [Ubuntu](https://github.com/drminnaar/guides/blob/master/postgresql-guide/1-getting-started.md#ubuntu-2004)
+* [Windows 10](https://github.com/drminnaar/guides/blob/master/postgresql-guide/1-getting-started.md#using-the-installer)
 
-  ![pgadmin-create-server-2](https://user-images.githubusercontent.com/33935506/40934522-5c29c0b4-6835-11e8-8a9d-b1324f377011.png)
+#### Connect
 
-* Open the _flyway\_schema\_history_ table that is located in the public schema of the heroes database.
+```bash
+# enter 'password' when prompted to enter password
+psql -h localhost -U dbadmin --dbname heroes
 
-  ![pgadmin-flyway-table](https://user-images.githubusercontent.com/33935506/40934524-5c976d62-6835-11e8-9b51-892aa1493c8b.png)
+# output
+Password for user dbadmin:
+psql (12.6 (Ubuntu 12.6-0ubuntu0.20.04.1), server 12.5)
+Type "help" for help.
+
+heroes=>
+```
+
+#### List Schemas
+
+```bash
+\dn
+
+# output
+   List of schemas
+   Name    |  Owner
+-----------+----------
+ hero_data | postgres
+ public    | postgres
+ user_data | postgres
+(3 rows)
+```
+
+#### List Tables
+
+```bash
+# list tables in public schema
+\dt
+
+# output
+                 List of relations
+ Schema |         Name          | Type  |  Owner
+--------+-----------------------+-------+----------
+ public | flyway_schema_history | table | postgres
+```
+
+```bash
+# list tables in hero_data schema
+\dt hero_data.
+
+# output
+          List of relations
+  Schema   | Name | Type  |  Owner
+-----------+------+-------+----------
+ hero_data | hero | table | postgres
+(1 row)
+```
+```bash
+# list tables in user_data schema
+\dt user_data.
+
+# output
+  Schema   | Name | Type  |  Owner
+-----------+------+-------+----------
+ user_data | user | table | postgres
+(1 row)
+```
+
+#### Show Data
+
+```bash
+select * from hero_data.hero;
+
+# output
+ id |   name    |                        description                         | debut_year | appearances | special_powers | cunning | strength | technology |          created_at           |          updated_at
+----+-----------+------------------------------------------------------------+------------+-------------+----------------+---------+----------+------------+-------------------------------+-------------------------------
+  1 | Destroyer | Created by Odin, locked in temple, brought to life by Loki |       1965 |         137 |             15 |       1 |       19 |         80 | 2021-04-26 10:15:15.122975+00 | 2021-04-26 10:15:15.122975+00
+(1 row)
+```
 
 ---
 
